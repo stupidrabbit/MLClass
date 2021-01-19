@@ -1,0 +1,116 @@
+---
+output:
+  html_document: default
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+#Practical Machine Learning: Final Assignment
+
+## Introduction
+The aim of the assignment is to predict the manner in which persons did their exercise, based on a number of features (predictors).
+The dependent variable is named "classe" and is of class "character".
+Now, loading the required packages:
+
+```{r message=FALSE}
+library(tidyverse)
+library(caret)
+```
+
+##Data preparation
+The data for this project come from the Human Activity Recognition (HAR) project.
+
+
+As the data set is very large, my computer was unable to process it because of memory issue. I was thus forced to subset it, randomly selecting 1000 data points. 
+There are 160 variables in the data frame. Most of them contain a lot of NA values. It has been decided to clean those of the variable that have 20 or more % of missing data.
+Variables of type "character" contain a lot of emply data, so I decided to get rid of these data whatsoever.
+Thus, 56 variables were retained for analysis, apart from a dependent variable.
+Output "classe" variable is of factor nature and was appropriately converted to a factor mode.
+
+```{r }
+training <- read.csv("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv")
+testing <- read.csv("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv")
+training <- training [sample(nrow(training), 1000), ]
+training <- training %>% select(which(colMeans(is.na(.)) < 0.2))
+training$classe <- as.factor (training$classe)
+training <- training [, sapply(training, class) != "character"]
+```
+
+Now I make some graphical plots to illustrate class distribution by two pairs of variables. 
+
+```{r }
+qplot(roll_belt, pitch_belt, colour=classe, data=training, main = "Classes by roll and pitch belt")
+
+qplot(roll_belt, roll_arm, colour=classe, data=training, main = "Classes by roll belt and arm")
+```
+
+It seems obvious that there are relationships between variables and classes, however these relationships are far fron linear so non-parametric methods were chosen to model these.
+
+As the testing data file provided does not contain "classe" variable, it cannot be properly used for model testing. Thus, the test set was created with createDataPartition command, assigning to it 30% of data points, while the rest 70% were assigned to the training data set.
+
+```{r }
+InTrain <- createDataPartition (y = training$classe, p=0.7, list=FALSE)
+trn <- training[InTrain, ]; tst <- training[-InTrain, ]
+```
+##Modeling part
+
+Now I start from more simple **Classification Trees** method. Model run is followed by calculating predictions and confusion matrices for training and test sets.
+
+```{r }
+modRpart <- train(classe~ ., data = trn, method="rpart")
+predRparttrain <- predict (modRpart, trn)
+confusionMatrix(predRparttrain, trn$classe)$table
+
+predRparttest <- predict (modRpart, tst)
+confusionMatrix(predRparttest, tst$classe)$table
+```
+
+Obtained prediction result obviously is unsatisfactory.
+So let's try more elaborated methods.
+
+First I try **Linear Discriminant Analysis** method
+
+```{r }
+modLDA <- train(classe~ ., data = trn, method="lda")
+predLDAtrain <- predict (modLDA, trn)
+confusionMatrix(predLDAtrain, trn$classe)$table
+
+predLDAtest <- predict (modLDA, tst)
+confusionMatrix(predLDAtest, tst$classe)$table
+```
+
+As can be seen, the model correctly predicts all the data on training as well as on test sets.
+
+Next, let`s try **Random Forest**:
+
+```{r }
+modRF <- train(classe~ ., data = trn, method="rf")
+predRFtrain <- predict (modRF, trn)
+confusionMatrix(predRFtrain, trn$classe)$table
+
+predRFtest <- predict (modRF, tst)
+confusionMatrix(predRFtest, tst$classe)$table
+```
+
+This time again, the model correctly predicts all the data on training as well as on test sets.
+
+## Conclusions
+
+While a simple **Classification tree** was not able to predict data with reasonable accuracy, the more elaborated **Linear Discriminant Analysis** and **Random Forest** methods gave prefect results when classifying the randomly selected subset of this dataset
+
+##Making prediction for supplied data set
+
+First, we'll retain columns that contain predictors from our model
+```{r }
+testdata <- testing[,names(training)[-57]]
+```
+
+Next, run the models with this data set:
+```{r }
+predLDA <- predict(modLDA, testdata)
+predRF <- predict(modRF, testdata)
+```
+
+
